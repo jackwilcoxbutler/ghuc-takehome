@@ -94,7 +94,7 @@ def _clean_csv(file_path):
 
             #Remove wrapping quote
             if line.startswith('"') and line.endswith('"'):
-                line = line[1:-1]  # Strip one character from the start and end
+                line = line[1:-1]
 
             
             line = line.replace('""','"')
@@ -103,11 +103,8 @@ def _clean_csv(file_path):
     return cleaned_file_path
 
 
-
-# SFTP connection details are stored in the environment variables
-
 def _process_raw_files(**context):
-    sftp_hook = SFTPHook('SFTP_CONN')  # Initialize the SFTP connection
+    sftp_hook = SFTPHook('SFTP_CONN')
     execution_date = context['ds']
 
     processed_files = []
@@ -214,7 +211,7 @@ def _clean_csv(dirty_file_path):
 
             #Remove wrapping quote
             if line.startswith('"') and line.endswith('"'):
-                line = line[1:-1]  # Strip one character from the start and end
+                line = line[1:-1]
 
             
             line = line.replace('""','"')
@@ -241,8 +238,7 @@ def _validate_patient_data(df):
         if not _validate_date(row['date_of_birth']):
             errors.append(f"Patient {row['patient_id']}: Invalid date_of_birth format")
         if pd.notna(row['phone']) and isinstance(row['phone'], str):
-            phone = row['phone'].strip()  # Remove leading/trailing spaces
-            # Modify regex to handle both formats: with and without space after parentheses
+            phone = row['phone'].strip()  
             if phone and not re.match(r'\(\d{3}\)\d{3}-\d{4}', phone):
                 errors.append(f"Patient {row['patient_id']}: Invalid phone number format")
     return errors
@@ -288,7 +284,7 @@ def _write_df_to_gcs_temp(bucket_name, file_path, df):
 
     with tempfile.NamedTemporaryFile(mode="w+", suffix=".csv", delete=True) as temp_file:
         df.to_csv(temp_file.name, index=False)
-        temp_file.seek(0)  # Move pointer to start
+        temp_file.seek(0)
         blob.upload_from_filename(temp_file.name, content_type="text/csv")
 
     print(f"File uploaded to gs://{bucket_name}/{file_path}")
@@ -334,10 +330,9 @@ def _parse_date(date_str):
     """Parse dates using pandas' built-in parsing, flag invalid dates, and return standardized output."""
 
     if pd.isna(date_str) or date_str.strip() == "":
-        return pd.NaT  # Return NaT for empty or missing values
+        return pd.NaT
     
     date_str.strip()
-
 
     # Try parsing the date using pandas' to_datetime with errors='coerce' to handle multiple formats
     parsed_date = pd.to_datetime(date_str, errors='coerce', dayfirst=False)  # dayfirst=False by default
@@ -361,11 +356,11 @@ def _transform_patient_data(df):
     df['insurance_effective_date'] = df['insurance_effective_date'].apply(_parse_date)
     
     # Set invalid or missing `date_of_birth` to NaN
-    df['date_of_birth'] = df['date_of_birth'].where(df['date_of_birth'].notna(), None)  # NaN for missing dates
+    df['date_of_birth'] = df['date_of_birth'].where(df['date_of_birth'].notna(), None)
     
     # Normalize `gender` (capitalize first letter) and set invalid gender to NaN
     df['gender'] = df['gender'].str.strip().str.upper()
-    df['gender'] = df['gender'].where(df['gender'].isin(['M', 'F', 'O']), None)  # Assuming valid values are 'M', 'F', or 'O'
+    df['gender'] = df['gender'].where(df['gender'].isin(['M', 'F', 'O']), None) 
     
     # Normalize phone numbers: Remove all non-numeric characters and set invalid phone numbers to NaN
     df['phone'] = df['phone'].apply(_parse_phone_number)
@@ -381,10 +376,8 @@ def _transform_patient_data(df):
     df['city'] = df['city'].apply(lambda x: None if pd.isna(x) or x == '' else x)
     df['address'] = df['address'].apply(lambda x: None if pd.isna(x) or x == '' else x)
 
-    # Normalize zip code: Set invalid zip codes to NaN
-    # Normalize zip code: Set invalid zip codes to NaN
     # Convert the 'zip' column to a string and remove decimal places
-    df['zip'] = df['zip'].astype('Int64').astype(str)  # Convert to integer and then string
+    df['zip'] = df['zip'].astype('Int64').astype(str) 
     df['zip'] = df['zip'].replace({r'\D': ''}, regex=True)
     df['zip'] = df['zip'].apply(lambda x: x if len(x) == 5 else None)
     df['zip'] = df['zip'].apply(lambda x: x.zfill(5) if pd.notna(x) else None)
@@ -404,8 +397,8 @@ def split_reason_and_icd(row):
     if isinstance(row['reason_for_visit'], str) and ',' in row['reason_for_visit']:
         # Split the string by comma
         reason, icd_code = row['reason_for_visit'].split(',', 1)
-        row['reason_for_visit'] = reason.strip()  # Assign the reason
-        row['icd_code'] = icd_code.strip()  # Assign the ICD code
+        row['reason_for_visit'] = reason.strip()
+        row['icd_code'] = icd_code.strip() 
     return row
 
 def _transform_visit_data(df):
@@ -414,7 +407,6 @@ def _transform_visit_data(df):
     # Fix date formats (example: standardizing visit_date format)
     df['visit_date'] = df['visit_date'].apply(_parse_date)
     df['follow_up_date'] = df['follow_up_date'].apply(_parse_date)
-
 
     # Normalize 'billable_amount' (ensure it's a float and fill missing values)
     df['billable_amount'] = pd.to_numeric(df['billable_amount'], errors='coerce')
@@ -452,14 +444,10 @@ transformation_functions = {
 
 def _transform_data(**kwargs):
     """Transform all CSV data before validation."""
-    
-   
-    ti = kwargs['ti']
-    execution_date = kwargs['ds']  # Execution date for file paths
+    execution_date = kwargs['ds']  
     file_name = kwargs['file_name']
     dataset_name = kwargs['dataset_name']
     transform_func = kwargs['transform_func']
-    transformed_data = {}
 
     # Iterate over each dataset and apply the transformation
     logging.info(f"Transforming {file_name}")
@@ -480,16 +468,6 @@ def _transform_data(**kwargs):
             transformed_df['effective_end_date'] = transformed_df['effective_end_date'].astype('datetime64[ns]')
             transformed_df['is_current'] = True  # New records are always current
 
-        logging.info(transformed_df)
-        
-        # with tempfile.NamedTemporaryFile(delete=False, mode='w', newline='', suffix='.csv') as temp_file:
-        #     temp_file_path = temp_file.name  # Get the path of the temp file
-        #     logging.info(f"Temporary file created at: {temp_file_path}")
-
-        #     # Write the transformed DataFrame to the temp file
-        #     transformed_df.to_csv(temp_file_path, index=False)
-        #     logging.info(f"Transformed data written to temporary file {temp_file_path}")
-
         # Upload the temporary file to GCS
         staging_bucket = CONFIG['zones']['staging']['bucket']
         staging_file = f"{dataset_name}/{execution_date}/{dataset_name}.csv"
@@ -501,8 +479,6 @@ def _transform_data(**kwargs):
         logging.error(f"Error transforming {file_name}: {str(e)}")
         raise Exception(f"Error transforming {file_name}: {str(e)}")
     
-    return
-
 def _load_to_bigquery(**kwargs):
     """Load files from gcs to BigQuery"""
     execution_date = kwargs['ds']
@@ -551,7 +527,6 @@ def _load_to_bigquery(**kwargs):
         logging.info(f"Loaded {load_job.output_rows} rows to {table_id}")
         
         # Step 2: Read the external SQL file and apply SCD Type 2 logic
-        # Construct the correct SQL file path
         if dataset_name == "visits":
             return
         
@@ -608,13 +583,13 @@ with DAG(
     )
     logging.info("DAG started.")
 
-    # ?Ingestion task
-    # ingestion_task = PythonOperator(
-    #     task_id='process_raw_files',
-    #     python_callable=_process_raw_files,
-    #     execution_timeout=timedelta(minutes=10),
-    #     dag=dag
-    # )
+    # Ingestion task
+    ingestion_task = PythonOperator(
+        task_id='process_raw_files',
+        python_callable=_process_raw_files,
+        execution_timeout=timedelta(minutes=10),
+        dag=dag
+    )
 
     with TaskGroup("transformation_tasks") as transformation_tasks:
        
@@ -659,6 +634,4 @@ with DAG(
     )
     logging.info("DAG finished.")
 
-    # Setting up task dependencies
-start_task  >> transformation_tasks >> validation_tasks >> bq_loading_tasks >> end_task
-# >> ingestion_task >> validation_task
+start_task  >> ingestion_task >> transformation_tasks >> validation_tasks >> bq_loading_tasks >> end_task
